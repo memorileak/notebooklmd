@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "NotebookLMD",
   "version": "1.0.0",
-  "description": "Copy Google NotebookLM note content as Markdown",
-  "permissions": ["activeTab", "storage", "clipboardWrite"],
+  "description": "Export and copy Google NotebookLM notes as clean Markdown format for easy sharing and documentation",
+  "permissions": ["activeTab", "clipboardWrite"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
