@@ -25,13 +25,13 @@ h1 {
   margin: 0;
   font-size: 20px;
   color: transparent;
-  background: linear-gradient(90deg,#7182ff 0%, #3cff52 100%);
+  background: linear-gradient(90deg, #7182ff 0%, #3cff52 100%);
   background-clip: text;
   filter: brightness(0.8);
 }
 
 button {
-  background: linear-gradient(90deg,#7182ff 0%, #3cff52 100%);
+  background: linear-gradient(90deg, #7182ff 0%, #3cff52 100%);
   color: white;
   font-weight: bold;
   border: none;
@@ -47,16 +47,32 @@ button:hover {
 }
 
 .status {
-  margin-top: 10px;
+  display: none;
+  position: fixed;
+  right: 8px;
+  top: 54px;
+  margin: 0;
+  padding: 8px;
+  background-color: white;
+  border-radius: 0;
+  border-bottom-left-radius: 4px;
   color: #34a853;
   font-style: italic;
-  height: 20px;
+  font-weight: bold;
 }
 
-code {
+.status.error {
+  color: red;
+}
+
+.status.show {
+  display: block;
+}
+
+.mdpreview {
+  flex: 1;
   background-color: whitesmoke;
   border-radius: 4px;
-  padding: 8px;
-  flex: 1;
+  padding: 0 8px;
   overflow-y: auto;
 }

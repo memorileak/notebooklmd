@@ -1,111 +1,154 @@
 // Listen for messages from the popup
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+  if (request.action === "getMarkdownPreview") {
+    try {
+      const markdown = detectNoteAndCreateMarkdown();
+      sendResponse({ success: true, markdown });
+    } catch (error) {
+      sendResponse({ success: false, error: error.message });
+    }
+  }
   if (request.action === "copyAsMarkdown") {
     try {
-      const markdownContent = convertNotebookToMarkdown();
-      copyToClipboard(markdownContent);
-      sendResponse({success: true});
+      const markdown = detectNoteAndCreateMarkdown();
+      if (markdown) {
+        copyToClipboard(markdown);
+        sendResponse({ success: true });
+      } else {
+        throw new Error('Markdown content is empty');
+      }
     } catch (error) {
-      sendResponse({success: false, error: error.message});
+      sendResponse({ success: false, error: error.message });
     }
   }
   return true;
 });
 
-// Function to detect and convert notebook content to Markdown
-function convertNotebookToMarkdown() {
-  // Detect if we're on a page with notebook content
-  let notebookCells = [];
-  
-  // Try to find notebook cells in the DOM
-  try {
-    // This implementation will depend on the specific structure of the notebook
-    // For this example, we'll assume a basic notebook structure
-    const cells = document.querySelectorAll('.notebook-cell, .cell');
-    
-    if (cells.length === 0) {
-      throw new Error("No notebook cells found");
-    }
-    
-    cells.forEach(cell => {
-      const cellType = cell.getAttribute('data-cell-type') || 
-                      (cell.querySelector('.code-cell') ? 'code' : 'markdown');
-      
-      let content = '';
-      
-      if (cellType === 'markdown') {
-        const mdContent = cell.querySelector('.markdown-content, .rendered_html');
-        content = mdContent ? mdContent.innerText : '';
-      } else if (cellType === 'code') {
-        const codeContent = cell.querySelector('pre, code');
-        const outputContent = cell.querySelector('.output');
-        
-        content = '```python\n';
-        content += codeContent ? codeContent.innerText : '';
-        content += '\n```\n\n';
-        
-        if (outputContent) {
-          content += '**Output:**\n\n```\n';
-          content += outputContent.innerText;
-          content += '\n```\n';
-        }
-      }
-      
-      notebookCells.push(content);
-    });
-    
-    return notebookCells.join('\n\n');
-  } catch (error) {
-    // Check for JSON notebook structure (like .ipynb files viewed in browser)
-    const preElements = document.querySelectorAll('pre');
-    for (const pre of preElements) {
-      try {
-        const content = pre.textContent;
-        if (content.includes('"cells":') && content.includes('"cell_type":')) {
-          const notebook = JSON.parse(content);
-          return convertIpynbToMarkdown(notebook);
-        }
-      } catch (e) {
-        // Not a valid JSON notebook
-        continue;
-      }
-    }
-    
-    throw new Error("No compatible notebook format found");
+function detectNoteAndCreateMarkdown() {
+  const noteElementHtml = document.querySelector('labs-tailwind-doc-viewer')?.innerHTML ?? '';
+  if (noteElementHtml) {
+    const noteTitle = document.querySelector('[aria-label*="note title"]')?.value ?? 'Untitled';
+    const markdownTitle = `## ${escapeMarkdown(noteTitle)}`;
+    const markdownContent = noteContentHtmlToMarkdown(noteElementHtml);
+    return `${markdownTitle}\n\n${markdownContent}`;
   }
+  return '';
 }
 
-// Function to convert .ipynb JSON structure to Markdown
-function convertIpynbToMarkdown(notebook) {
-  let markdown = '';
-  
-  if (notebook.cells && Array.isArray(notebook.cells)) {
-    notebook.cells.forEach(cell => {
-      if (cell.cell_type === 'markdown') {
-        markdown += cell.source.join('') + '\n\n';
-      } else if (cell.cell_type === 'code') {
-        markdown += '```python\n';
-        markdown += cell.source.join('');
-        markdown += '\n```\n\n';
-        
-        // Handle outputs
-        if (cell.outputs && cell.outputs.length > 0) {
-          markdown += '**Output:**\n\n';
-          
-          cell.outputs.forEach(output => {
-            if (output.output_type === 'stream') {
-              markdown += '```\n' + output.text.join('') + '\n```\n\n';
-            } else if (output.output_type === 'execute_result' && output.data && output.data['text/plain']) {
-              markdown += '```\n' + output.data['text/plain'].join('') + '\n```\n\n';
-            }
-            // Could handle more output types like images, etc.
-          });
+function noteContentHtmlToMarkdown(htmlString) {
+  // Create a temporary DOM element to parse the HTML
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, 'text/html');
+
+  // Remove all button elements
+  const buttons = doc.querySelectorAll('button');
+  buttons.forEach(button => button.remove());
+
+  // Get all structural elements
+  const structuralElements = doc.querySelectorAll('labs-tailwind-structural-element-view-v2');
+
+  // Initialize markdown result
+  let markdownResult = '';
+
+  // Process each structural element
+  structuralElements.forEach(element => {
+    // Check if this is a bullet list item
+    const bulletElement = element.querySelector('div[class*="bullet"]');
+    const hasBullet = bulletElement !== null;
+
+    // If yes, check if this is numbering bullet or just a normal bullet
+    const isNumberingBullet = hasBullet && /^[0-9]/.test(bulletElement?.innerText ?? '');
+
+    // Remove the bullet itself
+    if (hasBullet) {
+      bulletElement?.remove();
+    }
+
+    // Find paragraph element to determine nesting level
+    const paragraphDiv = element.querySelector('div[class*="paragraph"]');
+    let nestLevel = 0;
+
+    if (paragraphDiv) {
+      const paddingStyle = paragraphDiv.getAttribute('style');
+      if (paddingStyle && paddingStyle.includes('padding-inline-start:')) {
+        // Extract the padding value
+        const paddingMatch = paddingStyle.match(/padding-inline-start:\s*([0-9.]+)rem/);
+        if (paddingMatch && paddingMatch[1]) {
+          const paddingAmount = parseFloat(paddingMatch[1]);
+          if (Number.isFinite(paddingAmount) && paddingAmount >= 1.25) {
+            // Calculate nesting level based on padding
+            // Assuming each level increases by a certain amount 1.25rem
+            nestLevel = Math.floor(paddingAmount / 1.25);
+          }
         }
       }
-    });
+    }
+
+    // Start a new line for each structural element, based on its nestLevel
+    if (markdownResult !== '') {
+      markdownResult += nestLevel > 0 ? '\n' : '\n\n';
+    }
+
+    // Create indentation based on nesting level
+    let indent = '';
+    for (let i = 0; i < nestLevel - 1; i++) {
+      indent += '    '; // 4 spaces for each level
+    }
+
+    // Add bullet if needed
+    if (hasBullet) {
+      if (isNumberingBullet) {
+        markdownResult += `${indent}1. `;
+      } else {
+        markdownResult += `${indent}- `;
+      }
+    } else {
+      markdownResult += indent;
+    }
+
+    // Process the content of the element
+    let elementContent = processElementContent(element);
+
+    // Add the processed content to the result
+    markdownResult += elementContent;
+  });
+
+  return markdownResult;
+}
+
+function processElementContent(element) {
+  let result = '';
+  const clone = element.cloneNode(true);
+
+  // Process bold elements
+  const boldElements = clone.querySelectorAll('[class*="bold"]');
+  boldElements.forEach(boldElement => {
+    const text = boldElement.innerText;
+    boldElement.innerText = `&bold;${text}&/bold;`;
+  });
+
+  // Get the text content, preserving only the needed formatting
+  result = getTextContent(clone);
+
+  // Put a space between 2 consecutive bold marker pairs
+  result = result.replace(/\&\/bold;\&bold;/g, '&/bold; &bold;');
+
+  // Apply the final processing to restore bold formatting 
+  result = result.replace(/\&bold;(.*?)\&\/bold;/g, '**$1**');
+
+  return result;
+}
+
+function getTextContent(element) {
+  return escapeMarkdown(element.innerText.trim());
+}
+
+function escapeMarkdown(text) {
+  if (typeof text !== 'string') {
+    return '';
   }
-  
-  return markdown;
+  const markdownChars = /([\\`*_{}[\]()#+-.!|<>])/g;
+  return text.replace(markdownChars, '\\$1');
 }
 
 // Function to copy content to clipboard
@@ -117,7 +160,7 @@ function copyToClipboard(text) {
   textarea.style.position = 'absolute';
   textarea.style.left = '-9999px';
   document.body.appendChild(textarea);
-  
+
   textarea.select();
   document.execCommand('copy');
   document.body.removeChild(textarea);
