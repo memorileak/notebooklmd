@@ -25,13 +25,14 @@ h1 {
   margin: 0;
   font-size: 20px;
   color: transparent;
-  background: linear-gradient(90deg, #7182ff 0%, #3cff52 100%);
+  background: linear-gradient(90deg, #6054ff 0%, #1bfe35 100%);
   background-clip: text;
-  filter: brightness(0.8);
 }
 
 button {
-  background: linear-gradient(90deg, #7182ff 0%, #3cff52 100%);
+  background: linear-gradient(90deg, #1bfe35 0%, #6054ff 50%, #1bfe35 100%);
+  background-size: 200% 100%;
+  background-position: 100% 0;
   color: white;
   font-weight: bold;
   border: none;
@@ -39,11 +40,12 @@ button {
   border-radius: 4px;
   cursor: pointer;
   margin: 10px 0;
+  transition: all 0.3s ease-in-out;
 }
 
 button:hover {
-  scale: 1.02;
-  transition-duration: 0.15s;
+  background-position: 0 0;
+  transition: all 0.3s ease-in-out;
 }
 
 .status {
